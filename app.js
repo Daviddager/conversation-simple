@@ -20,6 +20,8 @@ var express = require('express'); // app server
 var bodyParser = require('body-parser'); // parser for post requests
 var Conversation = require('watson-developer-cloud/conversation/v1'); // watson sdk
 
+var ibmdb = require( 'ibm_db' );
+
 var app = express();
 
 // Bootstrap application settings
@@ -72,8 +74,16 @@ function updateMessage(input, response) {
   if (!response.output) {
     response.output = {};
   } else {
+    var regex = new RegExp( /3\d{2}(-| )?\d{3}(-| )?\d{4}/);
+    if( response.context.service != "none" && regex.test( input.input.text ) ){
+      getPhoneNumber( response );
+    }
+    // var saldo = '$300';
+    // var output = response.output.text[0];
+    // response.output.text[0] = output.replace( "_saldo_", saldo );
     return response;
   }
+
   if (response.intents && response.intents[0]) {
     var intent = response.intents[0];
     // Depending on the confidence of the response the app can return different messages.
@@ -91,6 +101,103 @@ function updateMessage(input, response) {
   }
   response.output.text = responseText;
   return response;
+}
+
+function getPhoneNumber( response ){
+  var phoneNumber = [];
+  for( var i = 0; i < response.entities.length; i++ ){
+    if( response.entities[i].entity === 'sys-number' ){
+      phoneNumber.push( response.entities[i].value );
+    }
+  }
+  phoneNumber = phoneNumber.join("");
+  phoneNumber = phoneNumber.replace(/-/g, "");
+  var result = consult( phoneNumber );
+  console.log( result );
+  var c = 0;
+  for( var i = 0; i < 10000000; i++ ){
+    c += 1;
+  }
+  if( result === "NoConn" ){
+    response.output.text[0] = "No pude conectarme a la Base de datos, intenta más tarde por favor";
+  }
+  if( result === "NoData" ){
+    response.output.text[0] = "No se encuentra ese número en a base de datos";
+  }else{
+    if( result != undefined ){
+
+      switch( response.context.service ){
+        case "datos":
+          var saldo = result.CAPACIDAD;
+          var output = response.output.text[0];
+          response.output.text[0] = output.replace( "_saldo_", saldo );
+          break;
+        case "sms":
+          var saldo = rows.MENSAJES;
+          var output = response.output.text[0];
+          response.output.text[0] = output.replace( "_saldo_", saldo );
+          break;
+        case "minutos":
+          var saldo = rows.MINUTOS;
+          var output = response.output.text[0];
+          response.output.text[0] = output.replace( "_saldo_", saldo );
+          break;
+        case "paquete":
+          var saldo = rows;
+          var output = response.output.text[0];
+          response.output.text[0] = output.replace( "_saldo_", saldo );
+          break;
+
+      }
+    }
+  }
+  return response;
+}
+
+function connect(){
+  var dbConnString = "DRIVER={DB2};DATABASE=BLUDB;HOSTNAME=dashdb-txn-small-yp-sjc03-01.services.dal.bluemix.net;PORT=50000;PROTOCOL=TCPIP;UID=bluadmin;PWD=ZWYwOTZhNTUzNTIx";
+  ibmdb.open( dbConnString, function( err, conn ){
+    if( err ){
+      console.error( "Error: ", err );
+      return "NoConn";
+    }else{
+      return conn;
+      } );
+}
+
+function closeConn( conn ){
+  conn.close( function(){
+    console.log( "Connection closed successfully." );
+  } );
+}
+
+function consult( phone_number ){
+  var dbConnString = "DRIVER={DB2};DATABASE=BLUDB;HOSTNAME=dashdb-txn-small-yp-sjc03-01.services.dal.bluemix.net;PORT=50000;PROTOCOL=TCPIP;UID=bluadmin;PWD=ZWYwOTZhNTUzNTIx";
+  ibmdb.open( dbConnString, function( err, conn ){
+    if( err ){
+      console.error( "Error: ", err );
+      return "NoConn";
+    }else{
+      var query = "SELECT * FROM PLAN WHERE TELEFONO = ";
+      query = query.concat( phone_number );
+      conn.query( query, function( err, rows ){
+        if( err ){
+          console.log( "Error: ", err );
+          return;
+        }else{
+          if( rows === "[]" ){
+            return "NoData";
+          }else{
+            //console.log( rows );
+            return rows;
+          }
+          conn.close( function(){
+            console.log( "Connection closed successfully." );
+          } );
+        }
+      } );
+    }
+  } );
 }
 
 module.exports = app;

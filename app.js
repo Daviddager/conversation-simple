@@ -20,7 +20,6 @@ var express = require('express'); // app server
 var bodyParser = require('body-parser'); // parser for post requests
 var Conversation = require('watson-developer-cloud/conversation/v1'); // watson sdk
 var ibmdb = require( 'ibm_db' );
-var waitUntil = require( 'wait-until' );
 
 var app = express();
 var conn = connectToDB();
@@ -60,7 +59,9 @@ app.post('/api/message', function(req, res) {
     if (err) {
       return res.status(err.code || 500).json(err);
     }
-    return res.json(updateMessage(payload, data));
+    updateMessage(payload, data, function( err, result ){
+      res.json( result );
+    } );
   });
 });
 
@@ -70,13 +71,10 @@ app.post('/api/message', function(req, res) {
  * @param  {Object} response The response from the Conversation service
  * @return {Object}          The response with the updated message
  */
-function updateMessage(input, response) {
+function updateMessage(input, response, callback) {
   var responseText = null;
   if (!response.output) {
     response.output = {};
-  }if( done ){
-    response.output.text[0] = "Hola";
-    return response;
   }
   else {
     // Regular Expression to validate a phone number
@@ -99,39 +97,25 @@ function updateMessage(input, response) {
       conn.query( query, function( err, rows ){
         if( err ){
           console.log( "Error: ", err );
+          callback( err, null );
           return;
         }else{
-          if( rows === "[]" ){
-            return "No Data";
+          if( !rows ){
+            callback( "No Data", null );
           }else{
             var output = response.output.text[0];
-            console.log( rows );
-            response.output.text[0] = output.replace( '_saldo_', rows[0].CAPACIDAD );
+            console.log( output );
+            output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+            console.log( output );
+            response.output.text[0] = output;
+            callback( null, response );
           }
         }
       } );
-      return response;
     }else{
-       return response;
+       callback( null, response );
     }
   }
-  if (response.intents && response.intents[0]) {
-    var intent = response.intents[0];
-    // Depending on the confidence of the response the app can return different messages.
-    // The confidence will vary depending on how well the system is trained. The service will always try to assign
-    // a class/intent to the input. If the confidence is low, then it suggests the service is unsure of the
-    // user's intent . In these cases it is usually best to return a disambiguation message
-    // ('I did not understand your intent, please rephrase your question', etc..)
-    if (intent.confidence >= 0.75) {
-      responseText = 'I understood your intent was ' + intent.intent;
-    } else if (intent.confidence >= 0.5) {
-      responseText = 'I think your intent was ' + intent.intent;
-    } else {
-      responseText = 'I did not understand your intent';
-    }
-  }
-  response.output.text = responseText;
-  return response;
 }
 
 function connectToDB(){

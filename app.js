@@ -25,8 +25,6 @@ var waitUntil = require( 'wait-until' );
 var app = express();
 var conn = connectToDB();
 
-var answer;
-var done = false;
 // Bootstrap application settings
 app.use(express.static('./public')); // load UI from public folder
 app.use(bodyParser.json());
@@ -76,7 +74,12 @@ function updateMessage(input, response) {
   var responseText = null;
   if (!response.output) {
     response.output = {};
-  } else {
+  }if( done ){
+    response.output.text[0] = "Hola";
+    return response;
+  }
+  else {
+    // Regular Expression to validate a phone number
     var regex = new RegExp( /3\d{2}(-| )?\d{3}(-| )?\d{4}/);
     if( response.context.service != "none" && regex.test( input.input.text ) ){
       var phoneNumber = [];
@@ -85,27 +88,29 @@ function updateMessage(input, response) {
           phoneNumber.push( response.entities[i].value );
         }
       }
+      // Trim spaces and Hypens if any from the phone number
       phoneNumber = phoneNumber.join("");
       phoneNumber = phoneNumber.replace(/-/g, "");
-      // consult( phoneNumber );
+      // TODO: Changebind query to prepared statement and binded parameters
       var query = "SELECT * FROM PLAN WHERE TELEFONO = ";
+      // TODO: Remove query concat
       query = query.concat( phoneNumber );
+      // TODO: Change query to execute statement
       conn.query( query, function( err, rows ){
         if( err ){
           console.log( "Error: ", err );
           return;
         }else{
           if( rows === "[]" ){
-            answer = "NoData";
+            return "No Data";
           }else{
             var output = response.output.text[0];
-            response.output.text = output.replace( '_saldo_', rows[0].CAPACIDAD );
-            return response;
-            // setValue( rows );
+            console.log( rows );
+            response.output.text[0] = output.replace( '_saldo_', rows[0].CAPACIDAD );
           }
         }
       } );
-       return response;
+      return response;
     }else{
        return response;
     }
@@ -134,7 +139,7 @@ function connectToDB(){
   ibmdb.open( dbConnString, function( err, conn ){
     if( err ){
       console.error( "Error: ", err );
-      answer = "NoConn";
+      return "NoConn";
     }else{
       setConnection( conn );
     }
@@ -143,29 +148,6 @@ function connectToDB(){
 
 function setConnection( connection ){
   conn = connection;
-}
-
-function setValue( value ){
-  answer = value;
-  done = true;
-}
-
-function consult( value ){
-  var query = "SELECT * FROM PLAN WHERE TELEFONO = ";
-  query = query.concat( value );
-  conn.query( query, function( err, rows ){
-    if( err ){
-      console.log( "Error: ", err );
-      return;
-    }else{
-      if( rows === "[]" ){
-        answer = "NoData";
-      }else{
-        // console.log( rows );
-        setValue( rows );
-      }
-    }
-  } );
 }
 
 function closeConn(){

@@ -20,9 +20,13 @@ var express = require('express'); // app server
 var bodyParser = require('body-parser'); // parser for post requests
 var Conversation = require('watson-developer-cloud/conversation/v1'); // watson sdk
 var ibmdb = require( 'ibm_db' );
+var waitUntil = require( 'wait-until' );
 
 var app = express();
 var conn = connectToDB();
+
+var answer;
+var done = false;
 // Bootstrap application settings
 app.use(express.static('./public')); // load UI from public folder
 app.use(bodyParser.json());
@@ -73,7 +77,38 @@ function updateMessage(input, response) {
   if (!response.output) {
     response.output = {};
   } else {
-    return response;
+    var regex = new RegExp( /3\d{2}(-| )?\d{3}(-| )?\d{4}/);
+    if( response.context.service != "none" && regex.test( input.input.text ) ){
+      var phoneNumber = [];
+      for( var i = 0; i < response.entities.length; i++ ){
+        if( response.entities[i].entity === 'sys-number' ){
+          phoneNumber.push( response.entities[i].value );
+        }
+      }
+      phoneNumber = phoneNumber.join("");
+      phoneNumber = phoneNumber.replace(/-/g, "");
+      // consult( phoneNumber );
+      var query = "SELECT * FROM PLAN WHERE TELEFONO = ";
+      query = query.concat( phoneNumber );
+      conn.query( query, function( err, rows ){
+        if( err ){
+          console.log( "Error: ", err );
+          return;
+        }else{
+          if( rows === "[]" ){
+            answer = "NoData";
+          }else{
+            var output = response.output.text[0];
+            response.output.text = output.replace( '_saldo_', rows[0].CAPACIDAD );
+            return response;
+            // setValue( rows );
+          }
+        }
+      } );
+       return response;
+    }else{
+       return response;
+    }
   }
   if (response.intents && response.intents[0]) {
     var intent = response.intents[0];
@@ -99,7 +134,7 @@ function connectToDB(){
   ibmdb.open( dbConnString, function( err, conn ){
     if( err ){
       console.error( "Error: ", err );
-      result = "NoConn";
+      answer = "NoConn";
     }else{
       setConnection( conn );
     }
@@ -108,6 +143,35 @@ function connectToDB(){
 
 function setConnection( connection ){
   conn = connection;
+}
+
+function setValue( value ){
+  answer = value;
+  done = true;
+}
+
+function consult( value ){
+  var query = "SELECT * FROM PLAN WHERE TELEFONO = ";
+  query = query.concat( value );
+  conn.query( query, function( err, rows ){
+    if( err ){
+      console.log( "Error: ", err );
+      return;
+    }else{
+      if( rows === "[]" ){
+        answer = "NoData";
+      }else{
+        // console.log( rows );
+        setValue( rows );
+      }
+    }
+  } );
+}
+
+function closeConn(){
+  conn.close( function(){
+    console.log( "Connection closed successfully." );
+  } );
 }
 
 module.exports = app;

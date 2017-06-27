@@ -104,9 +104,20 @@ function updateMessage(input, response, callback) {
             callback( "No Data", null );
           }else{
             var output = response.output.text[0];
-            console.log( output );
-            output = output.replace( '_saldo_', rows[0].CAPACIDAD );
-            console.log( output );
+            switch( response.context.service ){
+              case 'datos':
+                output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+                break;
+              case 'sms':
+                output = output.replace( '_minutos_', rows[0].CAPACIDAD );
+                break;
+              case 'minutos':
+                output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+                break;
+              case 'paquete':
+                output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+                break;
+            }
             response.output.text[0] = output;
             callback( null, response );
           }
@@ -119,7 +130,7 @@ function updateMessage(input, response, callback) {
 }
 
 function connectToDB(){
-  var dbConnString = "DRIVER={DB2};DATABASE=BLUDB;HOSTNAME=dashdb-txn-small-yp-sjc03-01.services.dal.bluemix.net;PORT=50000;PROTOCOL=TCPIP;UID=bluadmin;PWD=ZWYwOTZhNTUzNTIx";
+  var dbConnString = process.env.DBSTRING;
   ibmdb.open( dbConnString, function( err, conn ){
     if( err ){
       console.error( "Error: ", err );

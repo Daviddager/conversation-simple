@@ -109,13 +109,18 @@ function updateMessage(input, response, callback) {
                 output = output.replace( '_saldo_', rows[0].CAPACIDAD );
                 break;
               case 'sms':
-                output = output.replace( '_minutos_', rows[0].CAPACIDAD );
+                output = output.replace( '_sms_', rows[0].MENSAJES );
                 break;
               case 'minutos':
-                output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+                output = output.replace( '_minutos_', rows[0].MINUTOS );
                 break;
               case 'paquete':
-                output = output.replace( '_saldo_', rows[0].CAPACIDAD );
+                output = output.replace( '_nombre_', rows[0].NOMBRE );
+                output = output.replace( '_datos_', rows[0].CAPACIDAD );
+                output = output.replace( '_minutos_', rows[0].MINUTOS );
+                output = output.replace( '_mensajes_', rows[0].MENSAJES );
+                output = output.replace( '_fecha_', rows[0].FECHACORTE );
+                output = output.replace( '_extra_', rows[0].EXTRA );
                 break;
             }
             response.output.text[0] = output;
